@@ -29,7 +29,7 @@ struct Shape
     u16 y2 {};
     f32 thickness {};
     Color color;
-    char* text = nullptr;
+    i8* text = nullptr;
     Vector2* points = nullptr;
     u16 pointCount {};
 };
@@ -42,8 +42,12 @@ public:
     void add(Shape* shape) { this->_shapes.push_back(shape); }
     void removeTop()
     {
-        if (this->_shapes.size() > 0)
-            this->_shapes.pop_back();
+        if (this->_shapes.size() == 0) return;
+
+        const Shape* ptr = this->_shapes[this->_shapes.size() - 1];
+        delete ptr;
+
+        this->_shapes.pop_back();
     }
 
     const std::vector<Shape*>& shapes() { return this->_shapes; }

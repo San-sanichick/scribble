@@ -9,35 +9,33 @@
 
 #include "raylib.h"
 #include "raymath.h"
+#include "utils/debug.hpp"
 
-void DrawArrow(Vector2 start, Vector2 end, float thickness, Color color) {
-    // Draw the main shaft
+void DrawArrow(Vector2 start, Vector2 end, float thickness, Color color)
+{
     DrawLineEx(start, end, thickness, color);
 
-    // Calculate direction and length
     Vector2 dir = Vector2Subtract(end, start);
     float len = Vector2Length(dir);
-    if (len < 0.001f) return;  // Skip if too short to draw
+    if (len < 0.001f) return;
 
     Vector2 norm = Vector2Normalize(dir);
 
-    // Arrowhead parameters (adjust to taste)
-    const float arrowLength = thickness * 3.0f;  // Length of each barb
-    const float arrowAngle = 40.0f;  // Angle of barbs in degrees (e.g., 30 for a standard arrow)
+    const float arrowLength = thickness * 3.0f; 
+    const float arrowAngle = 40.0f;
 
-    // Calculate barb directions (rotate the reversed normal)
     Vector2 reverseNorm = Vector2Scale(norm, -arrowLength);
     Vector2 barb1 = Vector2Rotate(reverseNorm, arrowAngle);
     Vector2 barb2 = Vector2Rotate(reverseNorm, -arrowAngle);
 
-    // Calculate barb endpoints
     Vector2 barb1Pos = Vector2Add(start, barb1);
     Vector2 barb2Pos = Vector2Add(start, barb2);
 
-    // Draw the barbs
     DrawLineEx(start, barb1Pos, thickness, color);
     DrawLineEx(start, barb2Pos, thickness, color);
     DrawCircle(start.x, start.y, thickness * 0.5f, color);
+    DrawCircle(barb1Pos.x, barb1Pos.y, thickness * 0.5f, color);
+    DrawCircle(barb2Pos.x, barb2Pos.y, thickness * 0.5f, color);
 }
 
 void shapeRenderer(const scribble::Shape* shape, f32 thickness, Color& color)
@@ -97,8 +95,28 @@ void shapeRenderer(const scribble::Shape* shape, f32 thickness, Color& color)
         );
         break;
     case scribble::SHAPE_TYPE::TEXT:
-      break;
+        DrawText(shape->text, shape->x1, shape->y1, thickness * 2.0f, color);
+        break;
     }
+}
+
+
+void saveToClipboard()
+{
+    Image img = LoadImageFromScreen();
+
+    i32 size;
+    u8* pngData = ExportImageToMemory(img, ".png", &size);
+    CORE_ASSERT(pngData && size != 0, "Failed to export");
+
+    FILE* pipe = popen("wl-copy --type image/png", "w");
+    CORE_ASSERT(pipe, "Failed to create a pipe");
+
+    size_t written = fwrite(pngData, 1, size, pipe);
+    CORE_ASSERT(written == (size_t)size, "Failed to write correctly");
+
+    pclose(pipe);
+    MemFree(pngData);
 }
 
 
@@ -113,6 +131,7 @@ int main()
     SetWindowState(FLAG_WINDOW_UNDECORATED);
 
     SetTargetFPS(60);
+    SetExitKey(KEY_NULL);
 
     scribble::PaintMachine machine;
     Color color = PINK;
@@ -123,6 +142,7 @@ int main()
 
     f32 thickness = 15.0f;
     std::vector<Vector2> points;
+    bool textDone = true;
     while (!WindowShouldClose())
     {
         auto pos = GetMousePosition();
@@ -131,20 +151,7 @@ int main()
 
         if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_C))
         {
-            Image img = LoadImageFromScreen();
-
-            i32 size;
-            u8* pngData = ExportImageToMemory(img, ".png", &size);
-            CORE_ASSERT(pngData && size != 0, "Failed to export");
-
-            FILE* pipe = popen("wl-copy --type image/png", "w");
-            CORE_ASSERT(pipe, "Failed to create a pipe");
-
-            size_t written = fwrite(pngData, 1, size, pipe);
-            CORE_ASSERT(written == (size_t)size, "Failed to write correctly");
-
-            pclose(pipe);
-            MemFree(pngData);
+            saveToClipboard();
         }
 
         if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_Z))
@@ -152,29 +159,35 @@ int main()
             machine.removeTop();
         }
 
-        if (!isMouseDown && IsKeyPressed(KEY_R))
+        if (!isMouseDown && textDone && IsKeyPressed(KEY_R))
         {
             color = RED;
         }
 
-        if (!isMouseDown && IsKeyPressed(KEY_P))
+        if (!isMouseDown && textDone && IsKeyPressed(KEY_P))
         {
             color = PINK;
         }
 
-        if (!isMouseDown && IsKeyPressed(KEY_G))
+        if (!isMouseDown && textDone && IsKeyPressed(KEY_G))
         {
             color = GREEN;
         }
 
-        if (!isMouseDown && IsKeyPressed(KEY_B))
+        if (!isMouseDown && textDone && IsKeyPressed(KEY_B))
         {
             color = BLUE;
         }
 
-        currentType = scribble::SHAPE_TYPE::PEN;
+        if (currentType != scribble::SHAPE_TYPE::TEXT)
+            currentType = scribble::SHAPE_TYPE::PEN;
 
-        if (
+        if (IsKeyPressed(KEY_T))
+        {
+            currentType = scribble::SHAPE_TYPE::TEXT;
+            CORE_LOGN("{}", "set");
+        }
+        else if (
             (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) &&
             (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT))
         )
@@ -202,6 +215,51 @@ int main()
             currentShape->x1 = pos.x;
             currentShape->y1 = pos.y;
             currentShape->thickness = thickness;
+
+            if (currentShape->type == scribble::SHAPE_TYPE::TEXT)
+            {
+                currentShape->text = new i8[256];
+                currentShape->text[0] = '\0';
+                textDone = false;
+            }
+        }
+
+        if (!isMouseDown && !textDone)
+        {
+            i32 key = GetCharPressed();
+            char* text = currentShape->text;
+            while (key > 0)
+            {
+                size_t len = std::strlen(text);
+                if (len < 255)
+                {
+                    text[len] = (i8)key;
+                    text[len + 1] = '\0';
+                }
+
+                key = GetCharPressed();
+            }
+
+            if (IsKeyPressed(KEY_BACKSPACE))
+            {
+                size_t len = std::strlen(text) - 1;
+                if (len != 0)
+                    text[len] = '\0';
+            }
+        }
+
+        if (IsKeyPressed(KEY_ESCAPE))
+        {
+            if (!textDone)
+            {
+                textDone = true;
+                currentType = scribble::SHAPE_TYPE::PEN;
+            }
+            else
+            {
+                CloseWindow();
+                return 0;
+            }
         }
 
         if (isMouseDown && currentShape != nullptr)
@@ -212,17 +270,16 @@ int main()
             if (currentShape->type == scribble::SHAPE_TYPE::PEN)
             {
                 points.push_back(pos);
+                currentShape->points = new Vector2[points.size()];
+                currentShape->pointCount = points.size();
+                std::memcpy(currentShape->points, points.data(), points.size() * sizeof(Vector2));
             }
-
-            currentShape->points = new Vector2[points.size()];
-            currentShape->pointCount = points.size();
-            std::memcpy(currentShape->points, points.data(), points.size() * sizeof(Vector2));
         }
 
         if (IsMouseButtonUp(MOUSE_BUTTON_LEFT))
         {
             isMouseDown = false;
-            if (currentShape != nullptr)
+            if (currentShape != nullptr && textDone)
             {
                 machine.add(currentShape);
                 currentShape = nullptr;
