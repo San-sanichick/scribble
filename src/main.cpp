@@ -119,7 +119,8 @@ void saveToClipboard()
     MemFree(pngData);
 }
 
-
+// not a single smart pointer in sight
+// shall the rust cult burn in hell
 int main()
 {
     // borderless fullscreen
@@ -185,7 +186,6 @@ int main()
         if (IsKeyPressed(KEY_T))
         {
             currentType = scribble::SHAPE_TYPE::TEXT;
-            CORE_LOGN("{}", "set");
         }
         else if (
             (IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) &&
@@ -246,6 +246,15 @@ int main()
                 if (len != 0)
                     text[len] = '\0';
             }
+
+            if (IsKeyPressed(KEY_ENTER))
+            {
+                size_t len = std::strlen(text);
+                if (len < 255)
+                {
+                    text[len] = '\n';
+                }
+            }
         }
 
         if (IsKeyPressed(KEY_ESCAPE))
@@ -270,6 +279,7 @@ int main()
             if (currentShape->type == scribble::SHAPE_TYPE::PEN)
             {
                 points.push_back(pos);
+                delete[] currentShape->points;
                 currentShape->points = new Vector2[points.size()];
                 currentShape->pointCount = points.size();
                 std::memcpy(currentShape->points, points.data(), points.size() * sizeof(Vector2));

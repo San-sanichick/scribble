@@ -32,6 +32,15 @@ struct Shape
     i8* text = nullptr;
     Vector2* points = nullptr;
     u16 pointCount {};
+
+    ~Shape()
+    {
+        if (this->points != nullptr)
+            delete[] this->points;
+
+        if (this->text != nullptr)
+            delete[] this->text;
+    }
 };
 
 class PaintMachine
