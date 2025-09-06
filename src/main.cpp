@@ -112,8 +112,12 @@ void saveToClipboard()
     FILE* pipe = popen("wl-copy --type image/png", "w");
     CORE_ASSERT(pipe, "Failed to create a pipe");
 
+#ifdef DEBUG_BUILD
     size_t written = fwrite(pngData, 1, size, pipe);
     CORE_ASSERT(written == (size_t)size, "Failed to write correctly");
+#else
+    fwrite(pngData, 1, size, pipe);
+#endif
 
     pclose(pipe);
     MemFree(pngData);
@@ -305,15 +309,15 @@ int main()
         {
             ClearBackground(BLANK);
             DrawCircle(pos.x, pos.y, thickness * 0.5f, color);
-            
-            if (currentShape)
-            {
-                shapeRenderer(currentShape, thickness, color);
-            }
 
             for (const auto& shape : machine.shapes())
             {
                 shapeRenderer(shape, shape->thickness, shape->color);
+            }
+            
+            if (currentShape)
+            {
+                shapeRenderer(currentShape, thickness, color);
             }
         }
         EndDrawing();
