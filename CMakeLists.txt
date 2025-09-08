@@ -24,12 +24,10 @@ target_include_directories(scribble PUBLIC
     include/
 )
 
-add_subdirectory(vendors/glm)
 add_subdirectory(vendors/raylib)
 
 
 target_link_libraries(scribble PUBLIC
-    glm
     raylib
 )
 
