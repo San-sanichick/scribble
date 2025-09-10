@@ -7,7 +7,6 @@
     #define CORE_ABORT() abort()
 
 
-
     #define CORE_LOG(x, ...) std::cout << __FILE__ << ':' << __LINE__ << "> " << std::format(x, __VA_ARGS__)
     #define CORE_LOGN(x, ...) std::cout << __FILE__ << ':' << __LINE__ << "> " << std::format(x, __VA_ARGS__) << std::endl
     #define CORE_ERR(x, ...) std::cerr << __FILE__ << ':' << __LINE__ << "> " << std::format(x, __VA_ARGS__)
