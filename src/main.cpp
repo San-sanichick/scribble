@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <raylib.h>
 #include <string_view>
 #include "paintMachine.hpp"
@@ -122,7 +123,7 @@ Vector2 getCaretPos(const std::string& text, f32 fontSize, const Vector2& pos)
     
     for (size_t i = 0; i < text.size(); i++)
     {
-        char c = text[i];
+        u8 c = text[i];
         if (c == '\n')
         {
             lines++;
@@ -168,7 +169,6 @@ void saveToClipboard()
     MemFree(pngData);
 }
 
-// not a single smart pointer in sight
 // shall the rust cult burn in hell
 int main()
 {
@@ -186,9 +186,10 @@ int main()
     scribble::PaintMachine machine;
     Color color = PINK;
 
+    std::unique_ptr<scribble::Shape> currentShape = nullptr;
+
     bool isMouseDown = false;
     scribble::SHAPE_TYPE currentType = scribble::SHAPE_TYPE::LINE;
-    scribble::Shape* currentShape = nullptr;
 
     f32 thickness = 15.0f;
     bool textDone = true;
@@ -265,8 +266,8 @@ int main()
 
         if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) && !isMouseDown)
         {
-            if (currentShape == nullptr)
-                currentShape = new scribble::Shape();
+            if (!currentShape)
+                currentShape = std::make_unique<scribble::Shape>();
 
             if (currentType == scribble::SHAPE_TYPE::PEN)
                 currentShape->points = std::vector<Vector2>();
@@ -291,7 +292,7 @@ int main()
 
             while (key > 0)
             {
-                currentShape->text->push_back(static_cast<i8>(key));
+                currentShape->text->push_back(static_cast<u8>(key));
                 key = GetCharPressed();
             }
 
@@ -321,7 +322,7 @@ int main()
             }
         }
 
-        if (isMouseDown && currentShape != nullptr)
+        if (isMouseDown && currentShape)
         {
             currentShape->x2 = pos.x;
             currentShape->y2 = pos.y;
@@ -338,7 +339,7 @@ int main()
         if (IsMouseButtonUp(MOUSE_BUTTON_LEFT))
         {
             isMouseDown = false;
-            if (currentShape != nullptr && textDone)
+            if (currentShape && textDone)
             {
                 machine.add(currentShape);
                 currentShape = nullptr;
@@ -368,7 +369,7 @@ int main()
 
             for (const auto& shape : machine.shapes())
             {
-                shapeRenderer(shape, shape->thickness, shape->color);
+                shapeRenderer(shape.get(), shape->thickness, shape->color);
             }
             
             if (currentShape)
@@ -388,7 +389,7 @@ int main()
                         color
                     );
                 }
-                shapeRenderer(currentShape, thickness, color);
+                shapeRenderer(currentShape.get(), thickness, color);
             }
         }
         EndDrawing();
