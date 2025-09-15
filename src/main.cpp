@@ -173,8 +173,8 @@ void saveToClipboard()
 int main()
 {
     // borderless fullscreen
-    const i32 sWidth = 0;
-    const i32 sHeight = 0;
+    const i32 sWidth {};
+    const i32 sHeight {};
 
     SetConfigFlags(FLAG_WINDOW_TRANSPARENT);
     InitWindow(sWidth, sHeight, "Scribble");
