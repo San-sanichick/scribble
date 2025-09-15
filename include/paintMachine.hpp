@@ -2,6 +2,8 @@
 
 #include "pch.hpp"
 #include "raylib.h"
+#include <complex>
+#include <optional>
 #include <vector>
 
 
@@ -29,18 +31,8 @@ struct Shape
     u16 y2 {};
     f32 thickness {};
     Color color;
-    i8* text = nullptr;
-    Vector2* points = nullptr;
-    u16 pointCount {};
-
-    ~Shape()
-    {
-        if (this->points != nullptr)
-            delete[] this->points;
-
-        if (this->text != nullptr)
-            delete[] this->text;
-    }
+    std::optional<std::string> text;
+    std::optional<std::vector<Vector2>> points;
 };
 
 class PaintMachine

@@ -1,9 +1,11 @@
 #include "pch.hpp"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <raylib.h>
+#include <string_view>
 #include "paintMachine.hpp"
 
 
@@ -11,18 +13,18 @@
 #include "raymath.h"
 #include "utils/debug.hpp"
 
-void DrawArrow(Vector2 start, Vector2 end, float thickness, Color color)
+void DrawArrow(Vector2 start, Vector2 end, f32 thickness, Color color)
 {
     DrawLineEx(start, end, thickness, color);
 
     Vector2 dir = Vector2Subtract(end, start);
-    float len = Vector2Length(dir);
+    f32 len = Vector2Length(dir);
     if (len < 0.001f) return;
 
     Vector2 norm = Vector2Normalize(dir);
 
-    const float arrowLength = thickness * 3.0f; 
-    const float arrowAngle = 40.0f;
+    const f32 arrowLength = thickness * 3.0f; 
+    const f32 arrowAngle = 40.0f;
 
     Vector2 reverseNorm = Vector2Scale(norm, -arrowLength);
     Vector2 barb1 = Vector2Rotate(reverseNorm, arrowAngle);
@@ -47,26 +49,28 @@ void shapeRenderer(const scribble::Shape* shape, f32 thickness, Color& color)
     case scribble::SHAPE_TYPE::LINE:
         DrawLineEx(
             {
-                static_cast<float>(shape->x1),
-                static_cast<float>(shape->y1),
+                static_cast<f32>(shape->x1),
+                static_cast<f32>(shape->y1),
             },
             {
-                static_cast<float>(shape->x2),
-                static_cast<float>(shape->y2),
+                static_cast<f32>(shape->x2),
+                static_cast<f32>(shape->y2),
             },
             thickness,
             color
         );
         break;
     case scribble::SHAPE_TYPE::PEN:
-        DrawSplineCatmullRom(shape->points, shape->pointCount, thickness, color);
+        if (shape->points.has_value())
+            DrawSplineCatmullRom(shape->points->data(), shape->points->size(), thickness, color);
+
         break;
     case scribble::SHAPE_TYPE::RECT:
     {
-        float minX = std::min(shape->x1, shape->x2);
-        float minY = std::min(shape->y1, shape->y2);
-        float maxX = std::max(shape->x1, shape->x2);
-        float maxY = std::max(shape->y1, shape->y2);
+        f32 minX = std::min(shape->x1, shape->x2);
+        f32 minY = std::min(shape->y1, shape->y2);
+        f32 maxX = std::max(shape->x1, shape->x2);
+        f32 maxY = std::max(shape->y1, shape->y2);
 
         DrawRectangleLinesEx(
             {
@@ -83,23 +87,64 @@ void shapeRenderer(const scribble::Shape* shape, f32 thickness, Color& color)
     case scribble::SHAPE_TYPE::ARROW:
         DrawArrow(
             {
-                static_cast<float>(shape->x1),
-                static_cast<float>(shape->y1),
+                static_cast<f32>(shape->x1),
+                static_cast<f32>(shape->y1),
             },
             {
-                static_cast<float>(shape->x2),
-                static_cast<float>(shape->y2),
+                static_cast<f32>(shape->x2),
+                static_cast<f32>(shape->y2),
             },
             thickness,
             color
         );
         break;
     case scribble::SHAPE_TYPE::TEXT:
-        DrawText(shape->text, shape->x1, shape->y1, thickness * 2.0f, color);
+        if (shape->text.has_value())
+        {
+            DrawText(
+                shape->text->c_str(),
+                shape->x1,
+                shape->y1 - thickness,
+                thickness * 2.0f,
+                color
+            );
+        }
         break;
     }
 }
 
+Vector2 getCaretPos(const std::string& text, f32 fontSize, const Vector2& pos)
+{
+    i32 lines = 0;
+    size_t lastNewline = 0;
+    f32 width = 0.0f;
+    f32 height = 0.0f;
+    
+    for (size_t i = 0; i < text.size(); i++)
+    {
+        char c = text[i];
+        if (c == '\n')
+        {
+            lines++;
+            lastNewline = i + 1;
+        }
+
+        if (i == text.size() - 1)
+        {
+            size_t size = i - lastNewline + 1;
+            std::string_view slice(text.c_str() + lastNewline, size);
+
+            width = MeasureText(slice.data(), fontSize * 2.0f);
+        }
+    }
+
+    height = (fontSize * 2.0f) * lines;
+
+    return {
+        pos.x + width + (width > 0.0f ? (fontSize * 0.5f) : 0.0f),
+        pos.y + height,
+    };
+}
 
 void saveToClipboard()
 {
@@ -146,20 +191,28 @@ int main()
     scribble::Shape* currentShape = nullptr;
 
     f32 thickness = 15.0f;
-    std::vector<Vector2> points;
     bool textDone = true;
+
     while (!WindowShouldClose())
     {
         auto pos = GetMousePosition();
         thickness += (i32)GetMouseWheelMove() * 1;
 
 
-        if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_C))
+        if (
+            (IsKeyDown(KEY_LEFT_CONTROL) ||
+             IsKeyDown(KEY_RIGHT_CONTROL)) &&
+            IsKeyPressed(KEY_C)
+        )
         {
             saveToClipboard();
         }
 
-        if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_Z))
+        if (
+            (IsKeyDown(KEY_LEFT_CONTROL) ||
+             IsKeyDown(KEY_RIGHT_CONTROL)) &&
+            IsKeyPressed(KEY_Z)
+        )
         {
             machine.removeTop();
         }
@@ -185,7 +238,9 @@ int main()
         }
 
         if (currentType != scribble::SHAPE_TYPE::TEXT)
+        {
             currentType = scribble::SHAPE_TYPE::PEN;
+        }
 
         if (IsKeyPressed(KEY_T))
         {
@@ -213,6 +268,9 @@ int main()
             if (currentShape == nullptr)
                 currentShape = new scribble::Shape();
 
+            if (currentType == scribble::SHAPE_TYPE::PEN)
+                currentShape->points = std::vector<Vector2>();
+
             isMouseDown = true;
             currentShape->type = currentType;
             currentShape->color = color;
@@ -222,8 +280,7 @@ int main()
 
             if (currentShape->type == scribble::SHAPE_TYPE::TEXT)
             {
-                currentShape->text = new i8[256];
-                currentShape->text[0] = '\0';
+                currentShape->text = std::string();
                 textDone = false;
             }
         }
@@ -231,33 +288,22 @@ int main()
         if (!isMouseDown && !textDone)
         {
             i32 key = GetCharPressed();
-            char* text = currentShape->text;
+
             while (key > 0)
             {
-                size_t len = std::strlen(text);
-                if (len < 255)
-                {
-                    text[len] = (i8)key;
-                    text[len + 1] = '\0';
-                }
-
+                currentShape->text->push_back(static_cast<i8>(key));
                 key = GetCharPressed();
             }
 
             if (IsKeyPressed(KEY_BACKSPACE))
             {
-                size_t len = std::strlen(text) - 1;
-                if (len != 0)
-                    text[len] = '\0';
+                if (currentShape->text->size() > 0)
+                    currentShape->text->pop_back();
             }
 
             if (IsKeyPressed(KEY_ENTER))
             {
-                size_t len = std::strlen(text);
-                if (len < 255)
-                {
-                    text[len] = '\n';
-                }
+                currentShape->text->push_back('\n');
             }
         }
 
@@ -280,13 +326,12 @@ int main()
             currentShape->x2 = pos.x;
             currentShape->y2 = pos.y;
 
-            if (currentShape->type == scribble::SHAPE_TYPE::PEN)
+            if (
+                currentShape->type == scribble::SHAPE_TYPE::PEN &&
+                currentShape->points.has_value()
+            )
             {
-                points.push_back(pos);
-                delete[] currentShape->points;
-                currentShape->points = new Vector2[points.size()];
-                currentShape->pointCount = points.size();
-                std::memcpy(currentShape->points, points.data(), points.size() * sizeof(Vector2));
+                currentShape->points->push_back(pos);
             }
         }
 
@@ -298,17 +343,28 @@ int main()
                 machine.add(currentShape);
                 currentShape = nullptr;
             }
-
-            if (currentType == scribble::SHAPE_TYPE::PEN)
-            {
-                points.clear();
-            }
         }
 
         BeginDrawing();
         {
             ClearBackground(BLANK);
-            DrawCircle(pos.x, pos.y, thickness * 0.5f, color);
+
+            if (currentShape == nullptr)
+            {
+                if (currentType == scribble::SHAPE_TYPE::TEXT)
+                {
+                    DrawLineEx(
+                        { pos.x, pos.y + thickness },
+                        { pos.x, pos.y - thickness },
+                        thickness * 0.5f,
+                        color
+                    );
+                }
+                else
+                {
+                    DrawCircle(pos.x, pos.y, thickness * 0.5f, color);
+                }
+            }
 
             for (const auto& shape : machine.shapes())
             {
@@ -317,6 +373,21 @@ int main()
             
             if (currentShape)
             {
+                if (currentShape->type == scribble::SHAPE_TYPE::TEXT)
+                {
+                    auto caretPos = getCaretPos(
+                        currentShape->text.value(),
+                        thickness,
+                        { static_cast<f32>(currentShape->x1), static_cast<f32>(currentShape->y1) }
+                    );
+
+                    DrawLineEx(
+                        { caretPos.x, caretPos.y + thickness },
+                        { caretPos.x, caretPos.y - thickness },
+                        thickness * 0.5f,
+                        color
+                    );
+                }
                 shapeRenderer(currentShape, thickness, color);
             }
         }
