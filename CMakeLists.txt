@@ -7,9 +7,8 @@ endif(POLICY CMP0072)
 
 
 # add_definitions(-std=c++20)
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/target/$<CONFIG>")
 
@@ -19,9 +18,16 @@ add_executable(scribble ${src})
 
 # define DEBUG_BUILD macro
 add_compile_definitions($<$<CONFIG:Debug>:DEBUG_BUILD>)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(PORTAL REQUIRED libportal)
+pkg_check_modules(GLIB REQUIRED glib-2.0)
+pkg_check_modules(GIO REQUIRED gio-2.0)
 
 target_include_directories(scribble PUBLIC
     include/
+    ${PORTAL_INCLUDE_DIRS}
+    ${GLIB_INCLUDE_DIRS}
+    ${GIO_INCLUDE_DIRS}
 )
 
 add_subdirectory(vendors/raylib)
@@ -29,6 +35,9 @@ add_subdirectory(vendors/raylib)
 
 target_link_libraries(scribble PUBLIC
     raylib
+    ${PORTAL_LIBRARIES}
+    ${GLIB_LIBRARIES}
+    ${GIO_LIBRARIES}
 )
 
 set(PCH ${CMAKE_SOURCE_DIR}/include/pch.hpp)

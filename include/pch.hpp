@@ -1,6 +1,9 @@
 #pragma once
 
 #include <initializer_list>
+#include <memory>
+#include <expected>
+#include <stdexcept>
 #include <iostream>
 #include <format>
 #include <string>

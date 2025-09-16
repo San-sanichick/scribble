@@ -1,18 +1,18 @@
+#include "glib-object.h"
+#include "glib.h"
 #include "pch.hpp"
 
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <memory>
+#include <filesystem>
+#include <libportal/portal-helpers.h>
+#include <libportal/screenshot.h>
 #include <raylib.h>
-#include <string_view>
+#include <raymath.h>
+#include <libportal/portal.h>
+#include <gio/gio.h>
+
 #include "paintMachine.hpp"
-
-
-#include "raylib.h"
-#include "raymath.h"
 #include "utils/debug.hpp"
+
 
 void DrawArrow(Vector2 start, Vector2 end, f32 thickness, Color color)
 {
@@ -169,9 +169,107 @@ void saveToClipboard()
     MemFree(pngData);
 }
 
+
+enum class ScribbleError
+{
+    FailedBusConnect,
+    FailedScreenshot,
+    FailedRead,
+    FailedLoad,
+    FailedDelete
+};
+
+struct Context
+{
+    GMainLoop* loop = nullptr;
+    std::filesystem::path path;
+};
+
+static void screenshotCallback(GObject* src, GAsyncResult* result, gpointer ctx)
+{
+    XdpPortal* portal = XDP_PORTAL(src);
+    GError* err = nullptr;
+    char* uri = xdp_portal_take_screenshot_finish(portal, result, &err);
+    if (!err)
+    {
+        // std::string strUri(uri);
+        // if (strUri.rfind("file://", 0) != 0)
+        // {
+        //     CORE_ERRN("{}", "Error: failed read");
+        // }
+        //
+        // std::filesystem::path path(std::string_view(strUri.c_str() + 7, strUri.length()));
+
+        GFile* file = g_file_new_for_uri(uri);
+        char* path = g_file_get_path(file);
+
+        reinterpret_cast<Context*>(ctx)->path = path;
+        g_free(path);
+        g_free(uri);
+    }
+    else
+    {
+        CORE_ERRN("Erorr: {}:{}", err->code, err->message);
+        g_error_free(err);
+    }
+
+    g_object_unref(portal);
+    g_main_loop_quit(reinterpret_cast<Context*>(ctx)->loop);
+}
+
+
+std::expected<std::vector<std::byte>, ScribbleError> takeScreenshot()
+{
+    XdpPortal* portal = xdp_portal_new();
+    GMainLoop* loop = g_main_loop_new(nullptr, true);
+
+    Context ctx {
+        .loop = loop,
+        .path = {},
+    };
+
+    xdp_portal_take_screenshot(
+        portal,
+        nullptr,
+        XdpScreenshotFlags::XDP_SCREENSHOT_FLAG_INTERACTIVE,
+        nullptr,
+        screenshotCallback,
+        &ctx
+    );
+    g_main_loop_run(loop);
+    g_main_loop_unref(loop);
+
+    std::ifstream file(ctx.path, std::ios::binary);
+    if (!file) return std::unexpected(ScribbleError::FailedLoad);
+
+    size_t fileSize = std::filesystem::file_size(ctx.path);
+    std::vector<std::byte> data(fileSize);
+    file.read(reinterpret_cast<char*>(data.data()), fileSize);
+    file.close();
+
+    try
+    {
+        std::filesystem::remove(ctx.path);
+    }
+    catch(const std::filesystem::filesystem_error& err)
+    {
+        return std::unexpected(ScribbleError::FailedDelete);
+    }
+
+    return data;
+}
+
+
 // shall the rust cult burn in hell
 int main()
 {
+    auto data = takeScreenshot();
+    if (!data.has_value())
+    {
+        CORE_ERRN("Error occured: {}", (int)data.error());
+        return 0;
+    }
+
     // borderless fullscreen
     const i32 sWidth {};
     const i32 sHeight {};
@@ -182,6 +280,10 @@ int main()
 
     SetTargetFPS(60);
     SetExitKey(KEY_NULL);
+
+    Image image = LoadImageFromMemory("png", reinterpret_cast<unsigned char*>(data->data()), data->size());
+    Texture2D texture = LoadTextureFromImage(image);
+    UnloadImage(image);
 
     scribble::PaintMachine machine;
     Color color = PINK;
@@ -349,6 +451,7 @@ int main()
         BeginDrawing();
         {
             ClearBackground(BLANK);
+            DrawTexture(texture, 0, 0, WHITE);
 
             if (currentShape == nullptr)
             {
@@ -395,5 +498,6 @@ int main()
         EndDrawing();
     }
 
+    UnloadTexture(texture);
     CloseWindow();
 }
