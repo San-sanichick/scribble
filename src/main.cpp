@@ -114,12 +114,12 @@ void shapeRenderer(const scribble::Shape* shape, f32 thickness, Color& color)
     }
 }
 
-Vector2 getCaretPos(const std::string& text, f32 fontSize, const Vector2& pos)
+Vector2 getCaretPos(const std::string& text, f32 halfFontSize, const Vector2& pos)
 {
+    f32 fontSize = 2.0f * halfFontSize;
     i32 lines = 0;
     size_t lastNewline = 0;
     f32 width = 0.0f;
-    f32 height = 0.0f;
     
     for (size_t i = 0; i < text.size(); i++)
     {
@@ -135,14 +135,15 @@ Vector2 getCaretPos(const std::string& text, f32 fontSize, const Vector2& pos)
             size_t size = i - lastNewline + 1;
             std::string_view slice(text.c_str() + lastNewline, size);
 
-            width = MeasureText(slice.data(), fontSize * 2.0f);
+            width = MeasureText(slice.data(), fontSize);
         }
     }
 
-    height = (fontSize * 2.0f) * lines;
+    f32 spacing = 2.0f;
+    f32 height = (fontSize + spacing) * lines;
 
     return {
-        pos.x + width + (width > 0.0f ? (fontSize * 0.5f) : 0.0f),
+        pos.x + width + (width > 0.0f ? (fontSize * 0.25f) : 0.0f),
         pos.y + height,
     };
 }
