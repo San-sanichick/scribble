@@ -57,7 +57,10 @@ public:
         this->_shapes.pop_back();
     }
 
-    const std::vector<std::unique_ptr<Shape>>& shapes() { return this->_shapes; }
+    const std::vector<std::unique_ptr<Shape>>& shapes()
+    {
+        return this->_shapes;
+    }
 
 private:
     std::vector<std::unique_ptr<Shape>> _shapes;
